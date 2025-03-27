@@ -17,20 +17,23 @@ function Login() {
         password,
         isAdmin,
       });
+      
+      // Store the token in localStorage
+      localStorage.setItem('token', res.data.token);
+      
       alert(res.data.message);
       if (res.data.token) {
         if (isAdmin) navigate("/admin-panel");
-        else navigate("/student-panel");
+        else navigate("/client-panel");
       }
     } catch (error) {
-      alert("Invalid credentials");
+      alert(error.response?.data?.message || "Invalid credentials");
     }
   };
 
   return (
     <div className="flex flex-col justify-center items-center min-h-screen bg-gray-100">
-      {/* Title */}
-      <h1 className="text-3xl font-bold text-gray-800 mb-8">Student Management System</h1>
+      <h1 className="text-3xl font-bold text-gray-800 mb-8">Twinkle</h1>
 
       <div className="bg-white p-8 rounded-lg shadow-lg w-96">
         <h2 className="text-2xl font-semibold text-center text-gray-700 mb-6">Login</h2>
@@ -67,6 +70,15 @@ function Login() {
             Login
           </button>
         </form>
+        <p className="text-center text-gray-600 mt-4">
+          I am a new user?{" "}
+          <span
+            onClick={() => navigate("/signup")}
+            className="text-blue-500 cursor-pointer hover:underline"
+          >
+            Signup here
+          </span>
+        </p>
       </div>
     </div>
   );
