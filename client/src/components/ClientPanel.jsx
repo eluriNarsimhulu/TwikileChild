@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Repeat, Target, Clock, Star } from 'lucide-react';
+import { Play, Repeat, Target, Clock, Star, UserPlus } from 'lucide-react';
+import axios from 'axios';
+import ChildManagement from './ChildManagement';
 
 const ClientPanel = () => {
   const [tiles, setTiles] = useState(Array(16).fill('red'));
@@ -8,7 +10,10 @@ const ClientPanel = () => {
   const [timeLeft, setTimeLeft] = useState(10);
   const [gameStatus, setGameStatus] = useState('not-started');
   const [highScore, setHighScore] = useState(0);
+  const [selectedChild, setSelectedChild] = useState(null);
+  const [showChildManagement, setShowChildManagement] = useState(false);
   const timerRef = useRef(null);
+  const startTimeRef = useRef(null);
 
   // Randomly select a green tile
   const selectRandomGreenTile = () => {
@@ -63,14 +68,22 @@ const ClientPanel = () => {
     }
   };
 
-  // Start game and timer
+  // Start game with child selection
   const startGame = () => {
+    if (!selectedChild) {
+      setShowChildManagement(true);
+      return;
+    }
+
     // Reset game state
     const initialTiles = Array(16).fill('red');
     setTiles(initialTiles);
     setScore(0);
     setTimeLeft(10);
     setGameStatus('playing');
+    
+    // Track start time
+    startTimeRef.current = new Date();
     
     // Select first green tile
     const firstGreenTile = Math.floor(Math.random() * 16);
@@ -83,15 +96,46 @@ const ClientPanel = () => {
     timerRef.current = setInterval(() => {
       setTimeLeft(prevTime => {
         if (prevTime <= 1) {
-          clearInterval(timerRef.current);
-          setGameStatus('finished');
-          // Update high score
-          setHighScore(prevHighScore => Math.max(prevHighScore, score));
+          endGame();
           return 0;
         }
         return prevTime - 1;
       });
     }, 1000);
+  };
+
+  // End game and record history
+  const endGame = () => {
+    clearInterval(timerRef.current);
+    setGameStatus('finished');
+    
+    // Calculate end time
+    const endTime = new Date();
+    
+    // Record game history
+    recordGameHistory(startTimeRef.current, endTime);
+    
+    // Update high score
+    setHighScore(prevHighScore => Math.max(prevHighScore, score));
+  };
+
+  // Record game history to backend
+  const recordGameHistory = async (startTime, endTime) => {
+    if (!selectedChild) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('http://localhost:5000/game-history', {
+        childId: selectedChild._id,
+        startTime,
+        endTime,
+        score
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch (error) {
+      console.error('Failed to record game history:', error);
+    }
   };
 
   // Restart game
@@ -123,12 +167,44 @@ const ClientPanel = () => {
     }
   };
 
+  // Handle child selection
+  const handleChildSelect = (child) => {
+    setSelectedChild(child);
+    setShowChildManagement(false);
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-100 to-purple-200 p-4">
+      {/* Child Management Popup */}
+      {showChildManagement && (
+        <ChildManagement 
+          onChildSelect={handleChildSelect}
+          onClose={() => setShowChildManagement(false)}
+        />
+      )}
+
       <div className="bg-white shadow-2xl rounded-2xl p-8 w-full max-w-md transform transition-all hover:scale-105">
-        <h1 className="text-3xl font-extrabold mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-500">
-          Tile Tap Challenge
-        </h1>
+        {/* Header with Child Selection */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-500">
+            Tile Tap Challenge
+          </h1>
+          <button 
+            onClick={() => setShowChildManagement(true)}
+            className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600"
+          >
+            <UserPlus size={20} />
+          </button>
+        </div>
+
+        {/* Show selected child if available */}
+        {selectedChild && (
+          <div className="text-center mb-4">
+            <p className="text-xl">
+              Playing as: <span className="font-bold text-purple-600">{selectedChild.name}</span>
+            </p>
+          </div>
+        )}
         
         {/* Game Stats */}
         <div className="flex justify-between mb-6">

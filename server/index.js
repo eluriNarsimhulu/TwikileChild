@@ -9,6 +9,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// Database Connection
 const mongoUrl = 'mongodb://localhost:27017/management_system';
 mongoose.connect(mongoUrl, {
   serverApi: {
@@ -24,9 +25,7 @@ mongoose.connect(mongoUrl, {
   console.error("Database connection failed:", error.message);
 });
 
-// ========================
 // JWT Verification Middleware
-// ========================
 const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1]; // Get token from headers
   if (!token) return res.status(403).json({ message: "No token provided" });
@@ -51,15 +50,37 @@ const adminSchema = new mongoose.Schema({
 });
 const Admin = mongoose.model("Admin", adminSchema);
 
-// Client Schema
+// Client Schema (Updated to include children)
 const clientSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true },
   address: { type: String, required: true },
-  mobileNumber: { type: String, required: true }
+  mobileNumber: { type: String, required: true },
+  children: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Child' 
+  }]
 });
 const Client = mongoose.model("Client", clientSchema);
+
+// Child Schema
+const childSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  age: { type: Number, required: true },
+  parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
+  gameHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "GameHistory" }]
+});
+const Child = mongoose.model("Child", childSchema);
+
+// Game History Schema
+const gameHistorySchema = new mongoose.Schema({
+  childId: { type: mongoose.Schema.Types.ObjectId, ref: 'Child', required: true },
+  startTime: Date,
+  endTime: Date,
+  score: Number
+});
+const GameHistory = mongoose.model("GameHistory", gameHistorySchema);
 
 // ========================
 // Dummy Admin Data
@@ -132,60 +153,83 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Get all clients (Protected route)
-app.get("/clients", verifyToken, async (req, res) => {
+// ========================
+// Children and Game History Routes
+// ========================
+
+// Add a new child for a client
+app.post("/children", verifyToken, async (req, res) => {
   try {
-    // Only admin can access this route
-    if (!req.user.isAdmin) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-    const clients = await Client.find().select('-password');
-    res.json(clients);
+    const { name, age } = req.body;
+    const newChild = new Child({
+      name,
+      age: parseInt(age),
+      parentId: req.user.id
+    });
+    await newChild.save();
+
+    // Update client's children array
+    await Client.findByIdAndUpdate(
+      req.user.id, 
+      { $push: { children: newChild._id } },
+      { new: true }
+    );
+
+    res.status(201).json(newChild);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching clients", error: error.message });
+    res.status(500).json({ message: "Error adding child", error: error.message });
   }
 });
 
-// Add a new client (Protected route)
-app.post("/clients", verifyToken, async (req, res) => {
+// Get all children for a client
+app.get("/children", verifyToken, async (req, res) => {
   try {
-    // Only admin can add clients
-    if (!req.user.isAdmin) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-    const { name, email, address, mobileNumber } = req.body;
-    const newClient = new Client({ name, email, address, mobileNumber, password: 'temp_password' });
-    await newClient.save();
-    res.status(201).json(newClient);
+    const children = await Child.find({ parentId: req.user.id });
+    res.json(children);
   } catch (error) {
-    res.status(500).json({ message: "Error adding client", error: error.message });
+    res.status(500).json({ message: "Error fetching children", error: error.message });
   }
 });
 
-// Delete a client (Protected route)
-app.delete("/clients/:id", verifyToken, async (req, res) => {
+// Record game history
+app.post("/game-history", verifyToken, async (req, res) => {
   try {
-    // Only admin can delete clients
-    if (!req.user.isAdmin) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-    const { id } = req.params;
-    await Client.findByIdAndDelete(id);
-    res.json({ message: "Client deleted successfully" });
+    const { childId, startTime, endTime, score } = req.body;
+    
+    const gameHistory = new GameHistory({
+      childId,
+      startTime,
+      endTime,
+      score
+    });
+
+    await gameHistory.save();
+
+    // Update child's game history
+    await Child.findByIdAndUpdate(
+      childId,
+      { $push: { gameHistory: gameHistory._id } },
+      { new: true }
+    );
+
+    res.status(201).json(gameHistory);
   } catch (error) {
-    res.status(500).json({ message: "Error deleting client", error: error.message });
+    res.status(500).json({ message: "Error recording game history", error: error.message });
   }
 });
 
-// Sample protected route for students (Adjust if needed)
-app.get("/students", verifyToken, async (req, res) => {
+// Get game history for a specific child
+app.get("/game-history/:childId", verifyToken, async (req, res) => {
   try {
-    // Here, adjust based on your project logic.
-    const students = await Client.find(); // Assuming clients are your "students"
-    res.json(students);
+    const { childId } = req.params;
+    const gameHistory = await GameHistory.find({ childId });
+    res.json(gameHistory);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching students", error: error.message });
+    res.status(500).json({ message: "Error fetching game history", error: error.message });
   }
 });
 
+// ========================
+// Server Setup
+// ========================
 app.listen(5000, () => console.log("Server running on port 5000"));
