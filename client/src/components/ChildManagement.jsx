@@ -5,38 +5,76 @@ import { X, Plus, Users } from 'lucide-react';
 const ChildManagement = ({ onChildSelect, onClose }) => {
   const [children, setChildren] = useState([]);
   const [newChild, setNewChild] = useState({ name: '', age: '' });
-  const token = localStorage.getItem('token');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // Fetch children when component mounts
   useEffect(() => {
-    const fetchChildren = async () => {
-      try {
-        const res = await axios.get('http://localhost:5000/children', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setChildren(res.data);
-      } catch (error) {
-        console.error('Error fetching children:', error);
-      }
-    };
     fetchChildren();
-  }, [token]);
+  }, []);
+
+  const fetchChildren = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication token not found');
+        setLoading(false);
+        return;
+      }
+      
+      const res = await axios.get('http://localhost:5000/children', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setChildren(res.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching children:', error);
+      setError('Failed to load children. Please try again.');
+      setLoading(false);
+    }
+  };
 
   // Add a new child
   const handleAddChild = async () => {
     if (!newChild.name || !newChild.age) {
-      alert('Please fill in all fields');
+      setError('Please fill in all fields');
       return;
     }
 
     try {
+      setLoading(true);
+      setError('');
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication token not found');
+        setLoading(false);
+        return;
+      }
+      
       const res = await axios.post('http://localhost:5000/children', newChild, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      // Update the children list with the newly added child
       setChildren([...children, res.data]);
+      
+      // Reset the form
       setNewChild({ name: '', age: '' });
+      setLoading(false);
+      
+      // If this is the first child, auto-select it
+      if (children.length === 0) {
+        onChildSelect(res.data);
+      }
     } catch (error) {
-      alert('Failed to add child');
+      console.error('Failed to add child:', error);
+      setError('Failed to add child. Please try again.');
+      setLoading(false);
     }
   };
 
@@ -54,6 +92,13 @@ const ChildManagement = ({ onChildSelect, onClose }) => {
           <Users className="mr-2 text-blue-500" /> Select or Add a Child
         </h2>
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
+            {error}
+          </div>
+        )}
+
         {/* Add Child Section */}
         <div className="mb-6">
           <h3 className="text-lg font-semibold mb-4">Add New Child</h3>
@@ -64,6 +109,7 @@ const ChildManagement = ({ onChildSelect, onClose }) => {
               value={newChild.name}
               onChange={(e) => setNewChild({ ...newChild, name: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
+              disabled={loading}
             />
             <input
               type="number"
@@ -71,10 +117,12 @@ const ChildManagement = ({ onChildSelect, onClose }) => {
               value={newChild.age}
               onChange={(e) => setNewChild({ ...newChild, age: e.target.value })}
               className="w-24 px-3 py-2 border rounded-lg"
+              disabled={loading}
             />
             <button 
               onClick={handleAddChild}
-              className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 flex items-center"
+              className={`${loading ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'} text-white px-4 py-2 rounded-lg flex items-center`}
+              disabled={loading}
             >
               <Plus size={20} />
             </button>
@@ -84,15 +132,18 @@ const ChildManagement = ({ onChildSelect, onClose }) => {
         {/* Child List Section */}
         <div>
           <h3 className="text-lg font-semibold mb-4">Select a Child</h3>
-          {children.length === 0 ? (
+          {loading ? (
+            <p className="text-gray-500 text-center">Loading children...</p>
+          ) : children.length === 0 ? (
             <p className="text-gray-500 text-center">No children added yet</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-60 overflow-y-auto">
               {children.map((child) => (
                 <button
                   key={child._id}
                   onClick={() => onChildSelect(child)}
                   className="w-full bg-blue-100 text-blue-800 px-4 py-3 rounded-lg hover:bg-blue-200 flex justify-between items-center"
+                  disabled={loading}
                 >
                   <span className="font-medium">{child.name}</span>
                   <span className="text-sm text-blue-600">Age: {child.age}</span>
