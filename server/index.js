@@ -196,6 +196,13 @@ app.post("/game-history", verifyToken, async (req, res) => {
   try {
     const { childId, startTime, endTime, score } = req.body;
     
+    // Validate that we have all required fields and score is greater than 0
+    if (!childId || !startTime || !endTime || !score || score <= 0) {
+      return res.status(400).json({ 
+        message: "Invalid game history data. Score must be greater than 0." 
+      });
+    }
+    
     const gameHistory = new GameHistory({
       childId,
       startTime,
@@ -217,7 +224,6 @@ app.post("/game-history", verifyToken, async (req, res) => {
     res.status(500).json({ message: "Error recording game history", error: error.message });
   }
 });
-
 // Get game history for a specific child
 app.get("/game-history/:childId", verifyToken, async (req, res) => {
   try {

@@ -17,6 +17,7 @@ const ClientPanel = () => {
   const [children, setChildren] = useState([]);
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
+  const gameInProgressRef = useRef(false); // Track if game is actually in progress
 
   // Fetch children when component mounts
   useEffect(() => {
@@ -115,8 +116,9 @@ const ClientPanel = () => {
     setTimeLeft(10);
     setGameStatus('playing');
     
-    // Track start time
+    // Track start time - only when game is actually starting
     startTimeRef.current = new Date();
+    gameInProgressRef.current = true; // Set game in progress flag
     
     // Select first green tile
     const firstGreenTile = Math.floor(Math.random() * 16);
@@ -140,22 +142,28 @@ const ClientPanel = () => {
 
   // End game and record history
   const endGame = () => {
-    clearInterval(timerRef.current);
-    setGameStatus('finished');
-    
-    // Calculate end time
-    const endTime = new Date();
-    
-    // Record game history
-    recordGameHistory(startTimeRef.current, endTime);
-    
-    // Update high score
-    setHighScore(prevHighScore => Math.max(prevHighScore, score));
+    // Only record game history if a game was actually in progress
+    if (gameInProgressRef.current && selectedChild) {
+      clearInterval(timerRef.current);
+      setGameStatus('finished');
+      
+      // Calculate end time
+      const endTime = new Date();
+      
+      // Only record game history if the game actually started and there was a score
+      recordGameHistory(startTimeRef.current, endTime);
+      
+      // Update high score
+      setHighScore(prevHighScore => Math.max(prevHighScore, score));
+      
+      // Reset the game in progress flag
+      gameInProgressRef.current = false;
+    }
   };
 
   // Record game history to backend
   const recordGameHistory = async (startTime, endTime) => {
-    if (!selectedChild) return;
+    if (!selectedChild || !startTime || !endTime || score === 0) return;
 
     try {
       const token = localStorage.getItem('token');
