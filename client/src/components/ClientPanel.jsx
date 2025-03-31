@@ -15,9 +15,33 @@ const ClientPanel = () => {
   const [showChildManagement, setShowChildManagement] = useState(false);
   const [showGameHistory, setShowGameHistory] = useState(false);
   const [children, setChildren] = useState([]);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
-  const gameInProgressRef = useRef(false); // Track if game is actually in progress
+  const gameRecordedRef = useRef(false);
+
+  // Set up axios interceptor to handle token expiration
+  useEffect(() => {
+    // Add request interceptor
+    const interceptor = axios.interceptors.response.use(
+      response => response,
+      error => {
+        // If we get a 401 error, the token might be invalid or expired
+        if (error.response && error.response.status === 401) {
+          // Clear token and redirect to login
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // Clean up interceptor on component unmount
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, []);
 
   // Fetch children when component mounts
   useEffect(() => {
@@ -25,21 +49,43 @@ const ClientPanel = () => {
   }, []);
 
   const fetchChildren = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) {
+        setLoading(false);
+        window.location.href = '/login';
+        return;
+      }
       
       const res = await axios.get('http://localhost:5000/children', {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
       setChildren(res.data);
       
       // If there's at least one child and none is selected, select the first one
       if (res.data.length > 0 && !selectedChild) {
         setSelectedChild(res.data[0]);
+      } else if (res.data.length === 0) {
+        // If no children are left, clear the selected child
+        setSelectedChild(null);
+      } else if (selectedChild && !res.data.find(child => child._id === selectedChild._id)) {
+        // If the selected child was deleted, select the first child
+        setSelectedChild(res.data[0]);
       }
     } catch (error) {
       console.error('Error fetching children:', error);
+      setError('Failed to load children. Please try again.');
+      
+      // Check if the error is due to authorization
+      if (error.response && error.response.status === 401) {
+        handleLogout();
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -115,10 +161,10 @@ const ClientPanel = () => {
     setScore(0);
     setTimeLeft(10);
     setGameStatus('playing');
+    gameRecordedRef.current = false;
     
-    // Track start time - only when game is actually starting
+    // Track start time
     startTimeRef.current = new Date();
-    gameInProgressRef.current = true; // Set game in progress flag
     
     // Select first green tile
     const firstGreenTile = Math.floor(Math.random() * 16);
@@ -142,31 +188,33 @@ const ClientPanel = () => {
 
   // End game and record history
   const endGame = () => {
-    // Only record game history if a game was actually in progress
-    if (gameInProgressRef.current && selectedChild) {
-      clearInterval(timerRef.current);
-      setGameStatus('finished');
-      
-      // Calculate end time
-      const endTime = new Date();
-      
-      // Only record game history if the game actually started and there was a score
+    clearInterval(timerRef.current);
+    setGameStatus('finished');
+    
+    // Calculate end time
+    const endTime = new Date();
+    
+    // Record game history only if it hasn't been recorded yet
+    if (!gameRecordedRef.current && selectedChild) {
       recordGameHistory(startTimeRef.current, endTime);
-      
-      // Update high score
-      setHighScore(prevHighScore => Math.max(prevHighScore, score));
-      
-      // Reset the game in progress flag
-      gameInProgressRef.current = false;
+      gameRecordedRef.current = true;
     }
+    
+    // Update high score
+    setHighScore(prevHighScore => Math.max(prevHighScore, score));
   };
 
   // Record game history to backend
   const recordGameHistory = async (startTime, endTime) => {
-    if (!selectedChild || !startTime || !endTime || score === 0) return;
+    if (!selectedChild) return;
 
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        handleLogout();
+        return;
+      }
+      
       await axios.post('http://localhost:5000/game-history', {
         childId: selectedChild._id,
         startTime,
@@ -177,6 +225,7 @@ const ClientPanel = () => {
       });
     } catch (error) {
       console.error('Failed to record game history:', error);
+      // We don't want to interrupt gameplay for this error, so just log it
     }
   };
 
@@ -223,6 +272,33 @@ const ClientPanel = () => {
     setShowGameHistory(true);
   };
 
+  // Handle game history close with optional updated children data
+  const handleGameHistoryClose = (updatedChildren) => {
+    setShowGameHistory(false);
+    
+    // If we received updated children data, update our state
+    if (updatedChildren) {
+      setChildren(updatedChildren);
+      
+      // Check if the selected child still exists
+      if (selectedChild && !updatedChildren.find(child => child._id === selectedChild._id)) {
+        // If selected child was deleted, select the first child or set to null
+        setSelectedChild(updatedChildren.length > 0 ? updatedChildren[0] : null);
+      }
+    }
+    
+    // Refresh children to ensure we have the latest data
+    fetchChildren();
+  };
+
+  // Check token existence and validity on component mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      window.location.href = '/login';
+    }
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-blue-100 to-purple-200">
       {/* Navbar */}
@@ -262,6 +338,29 @@ const ClientPanel = () => {
 
       {/* Main Content */}
       <div className="flex-grow flex items-center justify-center p-4">
+        {/* Error Display */}
+        {error && (
+          <div className="fixed top-16 right-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded shadow-md">
+            <p>{error}</p>
+            <button 
+              onClick={() => {
+                setError(null);
+                fetchChildren();
+              }}
+              className="mt-2 text-sm text-blue-600 hover:underline"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Loading indicator */}
+        {loading && (
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        )}
+
         {/* Child Management Popup */}
         {showChildManagement && (
           <ChildManagement 
@@ -277,7 +376,7 @@ const ClientPanel = () => {
         {showGameHistory ? (
           <GameHistory 
             children={children}
-            onClose={() => setShowGameHistory(false)}
+            onClose={handleGameHistoryClose}
           />
         ) : (
           <div className="bg-white shadow-2xl rounded-2xl p-8 w-full max-w-md transform transition-all hover:scale-105">
@@ -370,6 +469,19 @@ const ClientPanel = () => {
                 <span className="font-bold text-xl text-purple-600 flex items-center justify-center">
                   <Target className="mr-2 text-green-500" /> Score: {score}
                 </span>
+              </div>
+            )}
+            
+            {/* No Children Message */}
+            {!loading && children.length === 0 && (
+              <div className="text-center mt-4">
+                <p className="text-red-500">No children found. Please add a child to play.</p>
+                <button 
+                  onClick={() => setShowChildManagement(true)}
+                  className="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+                >
+                  Add Child
+                </button>
               </div>
             )}
           </div>

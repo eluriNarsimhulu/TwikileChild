@@ -235,6 +235,256 @@ app.get("/game-history/:childId", verifyToken, async (req, res) => {
   }
 });
 
+// Add these routes to your server/index.js file
+
+// Delete a child
+app.delete("/children/:childId", verifyToken, async (req, res) => {
+  try {
+    const { childId } = req.params;
+    
+    // Verify that the child belongs to the authenticated user
+    const child = await Child.findById(childId);
+    if (!child) {
+      return res.status(404).json({ message: "Child not found" });
+    }
+    
+    // Check if the child belongs to the authenticated user
+    if (child.parentId.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Unauthorized: Child does not belong to this user" });
+    }
+    
+    // Delete all game history entries associated with this child
+    await GameHistory.deleteMany({ childId });
+    
+    // Remove the child from the client's children array
+    await Client.findByIdAndUpdate(
+      req.user.id,
+      { $pull: { children: childId } }
+    );
+    
+    // Delete the child
+    await Child.findByIdAndDelete(childId);
+    
+    res.json({ message: "Child and associated game history deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting child", error: error.message });
+  }
+});
+
+// Delete a game history entry
+app.delete("/game-history/:gameId", verifyToken, async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    
+    // Find the game history entry
+    const gameHistory = await GameHistory.findById(gameId);
+    if (!gameHistory) {
+      return res.status(404).json({ message: "Game history not found" });
+    }
+    
+    // Find the child to verify ownership
+    const child = await Child.findById(gameHistory.childId);
+    if (!child) {
+      return res.status(404).json({ message: "Child not found" });
+    }
+    
+    // Verify that the child belongs to the authenticated user
+    if (child.parentId.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Unauthorized: Game history does not belong to this user's child" });
+    }
+    
+    // Remove the game history reference from the child
+    await Child.findByIdAndUpdate(
+      gameHistory.childId,
+      { $pull: { gameHistory: gameId } }
+    );
+    
+    // Delete the game history entry
+    await GameHistory.findByIdAndDelete(gameId);
+    
+    res.json({ message: "Game history deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting game history", error: error.message });
+  }
+});
+
+// Add these routes to your server/index.js file
+
+// Get all clients (for admin use only)
+app.get("/clients", verifyToken, async (req, res) => {
+  try {
+    // Check if the user is an admin
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: "Unauthorized: Admin access required" });
+    }
+    
+    // Fetch all clients
+    const clients = await Client.find({}, { password: 0 }); // Exclude password field
+    res.json(clients);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching clients", error: error.message });
+  }
+});
+
+// Get a specific client with their children (for admin use only)
+app.get("/clients/:clientId/children", verifyToken, async (req, res) => {
+  try {
+    // Check if the user is an admin
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: "Unauthorized: Admin access required" });
+    }
+    
+    const { clientId } = req.params;
+    
+    // Find the client by ID
+    const client = await Client.findById(clientId);
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+    
+    // Find all children of this client
+    const children = await Child.find({ parentId: clientId });
+    
+    // Fetch game histories for each child
+    const childrenWithHistory = await Promise.all(children.map(async (child) => {
+      const gameHistory = await GameHistory.find({ childId: child._id });
+      
+      // Convert Mongoose document to plain object and add game history
+      const childObj = child.toObject();
+      childObj.gameHistory = gameHistory;
+      
+      return childObj;
+    }));
+    
+    res.json(childrenWithHistory);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching client children", error: error.message });
+  }
+});
+
+// Fix the existing delete route - it was using "clients" in URL but "students" in the function
+app.delete("/clients/:id", verifyToken, async (req, res) => {
+  try {
+    // Check if the user is an admin
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: "Unauthorized: Admin access required" });
+    }
+    
+    const { id } = req.params;
+    await Client.findByIdAndDelete(id);
+    
+    // Also delete all children and their game histories
+    const children = await Child.find({ parentId: id });
+    
+    // Delete game histories for each child
+    for (const child of children) {
+      await GameHistory.deleteMany({ childId: child._id });
+    }
+    
+    // Delete all children
+    await Child.deleteMany({ parentId: id });
+    
+    res.json({ message: "Client deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting client", error: error.message });
+  }
+});
+
+// Message Schema
+const messageSchema = new mongoose.Schema({
+  senderId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  receiverId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  content: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now },
+  isAdmin: { type: Boolean, default: false },
+  isRead: { type: Boolean, default: false },
+});
+const Message = mongoose.model("Message", messageSchema);
+
+// Send a message
+app.post("/messages", verifyToken, async (req, res) => {
+  try {
+    const { receiverId, content } = req.body;
+    
+    const message = new Message({
+      senderId: req.user.id,
+      receiverId,
+      content,
+      isAdmin: req.user.isAdmin,
+      timestamp: Date.now(),
+    });
+    
+    await message.save();
+    
+    res.status(201).json(message);
+  } catch (error) {
+    res.status(500).json({ message: "Error sending message", error: error.message });
+  }
+});
+
+// Get messages between admin and client
+app.get("/messages/:clientId", verifyToken, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    // Find messages where either the admin is sending to the client or the client is sending to the admin
+    const messages = await Message.find({
+      $or: [
+        { senderId: req.user.id, receiverId: clientId },
+        { senderId: clientId, receiverId: req.user.id }
+      ]
+    }).sort({ timestamp: 1 });
+    
+    // For each message, add the sender's name
+    const messagesWithNames = await Promise.all(messages.map(async (message) => {
+      const messageObj = message.toObject();
+      
+      if (message.isAdmin) {
+        messageObj.senderName = "Admin";
+      } else {
+        // Find the client's name
+        const client = await Client.findById(message.senderId);
+        messageObj.senderName = client ? client.name : "Unknown Client";
+      }
+      
+      return messageObj;
+    }));
+    
+    res.json(messagesWithNames);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching messages", error: error.message });
+  }
+});
+
+// Mark messages as read
+app.put("/messages/read/:senderId", verifyToken, async (req, res) => {
+  try {
+    const { senderId } = req.params;
+    
+    await Message.updateMany(
+      { senderId, receiverId: req.user.id, isRead: false },
+      { isRead: true }
+    );
+    
+    res.json({ message: "Messages marked as read" });
+  } catch (error) {
+    res.status(500).json({ message: "Error marking messages as read", error: error.message });
+  }
+});
+
+// Get unread message count for a user
+app.get("/messages/unread/count", verifyToken, async (req, res) => {
+  try {
+    const count = await Message.countDocuments({
+      receiverId: req.user.id,
+      isRead: false
+    });
+    
+    res.json({ count });
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching unread message count", error: error.message });
+  }
+});
 // ========================
 // Server Setup
 // ========================
