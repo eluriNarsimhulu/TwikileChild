@@ -9,6 +9,9 @@ const GameHistory = ({ children, onClose }) => {
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, childId: null });
   const token = localStorage.getItem('token');
 
+  // Ensure children is always an array
+  const childrenArray = Array.isArray(children) ? children : [];
+
   // Fetch game history for a specific child
   const fetchGameHistory = async (childId) => {
     setLoading(true);
@@ -159,11 +162,11 @@ const GameHistory = ({ children, onClose }) => {
         <div className="bg-gray-50 p-4 rounded-lg">
           <h3 className="text-lg font-semibold mb-4 text-blue-600">Select a Child</h3>
           
-          {children.length === 0 ? (
+          {childrenArray.length === 0 ? (
             <p className="text-gray-500">No children found</p>
           ) : (
             <div className="space-y-2">
-              {children.map((child) => (
+              {childrenArray.map((child) => (
                 <div key={child._id} className="relative">
                   <button
                     onClick={() => handleChildSelect(child)}

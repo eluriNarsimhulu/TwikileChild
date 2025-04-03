@@ -4,6 +4,7 @@ import axios from 'axios';
 import ChildManagement from './ChildManagement';
 import GameHistory from './GameHistory';
 
+
 const ClientPanel = () => {
   const [tiles, setTiles] = useState(Array(16).fill('red'));
   const [currentGreenTile, setCurrentGreenTile] = useState(null);
@@ -20,6 +21,7 @@ const ClientPanel = () => {
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
   const gameRecordedRef = useRef(false);
+
 
   // Set up axios interceptor to handle token expiration
   useEffect(() => {
@@ -276,8 +278,8 @@ const ClientPanel = () => {
   const handleGameHistoryClose = (updatedChildren) => {
     setShowGameHistory(false);
     
-    // If we received updated children data, update our state
-    if (updatedChildren) {
+    // If we received updated children data and it's an array, update our state
+    if (updatedChildren && Array.isArray(updatedChildren)) {
       setChildren(updatedChildren);
       
       // Check if the selected child still exists

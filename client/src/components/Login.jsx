@@ -2,12 +2,24 @@ import { useState } from "react";
 import axios from "axios";
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import Lottie from "react-lottie";
+import login from "../assets/login.json";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
+
+  // Lottie animation options
+  const defaultOptions = {
+    loop: true,
+    autoplay: true,
+    animationData: login,
+    rendererSettings: {
+      preserveAspectRatio: "xMidYMid slice"
+    }
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -32,53 +44,98 @@ function Login() {
   };
 
   return (
-    <div className="flex flex-col justify-center items-center min-h-screen bg-gray-100">
-      <h1 className="text-3xl font-bold text-gray-800 mb-8">Twinkle</h1>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-6xl bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row">
+        {/* Left side - Animation */}
+        <div className="w-full md:w-1/2 bg-gradient-to-br from-blue-400 to-green-500 p-8 flex items-center justify-center">
+          <div className="max-w-md">
+            <h1 className="text-4xl font-bold text-white mb-6 text-center">Twinkle</h1>
+            <div className="w-full">
+              <Lottie options={defaultOptions} height={300} width="100%" />
+            </div>
+            <p className="text-white text-center mt-6 text-lg">Welcome back! We're glad to see you again.</p>
+          </div>
+        </div>
 
-      <div className="bg-white p-8 rounded-lg shadow-lg w-96">
-        <h2 className="text-2xl font-semibold text-center text-gray-700 mb-6">Login</h2>
-        <form onSubmit={handleLogin} className="space-y-4">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <label className="flex items-center space-x-2 text-gray-600">
-            <input
-              type="checkbox"
-              checked={isAdmin}
-              onChange={() => setIsAdmin(!isAdmin)}
-              className="h-5 w-5 text-blue-500 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-            />
-            <span>Login as Admin</span>
-          </label>
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-300"
-          >
-            Login
-          </button>
-        </form>
-        <p className="text-center text-gray-600 mt-4">
-          I am a new user?{" "}
-          <span
-            onClick={() => navigate("/signup")}
-            className="text-blue-500 cursor-pointer hover:underline"
-          >
-            Signup here
-          </span>
-        </p>
+        {/* Right side - Form */}
+        <div className="w-full md:w-1/2 p-8">
+          <div className="max-w-md mx-auto">
+            <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center">Login to Your Account</h2>
+            
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="relative">
+                <input
+                  type="email"
+                  placeholder=" "
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 peer transition-all"
+                />
+                <label className="absolute left-4 -top-2.5 bg-white px-1 text-sm text-gray-600 transition-all peer-placeholder-shown:top-3 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-focus:-top-2.5 peer-focus:text-sm peer-focus:text-blue-500">
+                  Email
+                </label>
+              </div>
+              
+              <div className="relative">
+                <input
+                  type="password"
+                  placeholder=" "
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 peer transition-all"
+                />
+                <label className="absolute left-4 -top-2.5 bg-white px-1 text-sm text-gray-600 transition-all peer-placeholder-shown:top-3 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-focus:-top-2.5 peer-focus:text-sm peer-focus:text-blue-500">
+                  Password
+                </label>
+              </div>
+              
+              <label className="flex items-center space-x-3 text-gray-700 pl-1">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={isAdmin}
+                    onChange={() => setIsAdmin(!isAdmin)}
+                    className="h-5 w-5 opacity-0 absolute"
+                    id="admin-checkbox"
+                  />
+                  <div className={`border-2 rounded w-5 h-5 flex flex-shrink-0 justify-center items-center mr-2 ${isAdmin ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}`}>
+                    <svg className={`fill-current w-3 h-3 text-white pointer-events-none ${isAdmin ? 'opacity-100' : 'opacity-0'}`} viewBox="0 0 20 20">
+                      <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
+                    </svg>
+                  </div>
+                </div>
+                <span className="select-none" onClick={() => setIsAdmin(!isAdmin)}>Login as Admin</span>
+              </label>
+              
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-blue-500 to-green-500 text-white py-3 rounded-lg hover:from-blue-600 hover:to-green-600 transition duration-300 font-medium text-lg shadow-lg transform hover:-translate-y-1 mt-6"
+              >
+                Login
+              </button>
+            </form>
+            
+            <div className="relative my-8">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Don't have an account?</span>
+              </div>
+            </div>
+            
+            <div className="text-center">
+              <span
+                onClick={() => navigate("/signup")}
+                className="inline-block text-blue-600 cursor-pointer hover:underline font-medium text-lg"
+              >
+                Sign Up
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
