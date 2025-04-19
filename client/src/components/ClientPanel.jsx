@@ -20,6 +20,8 @@ const ClientPanel = () => {
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
   const gameRecordedRef = useRef(false);
+  const [isForwardStep, setIsForwardStep] = useState(true);
+  
 
   // Set up axios interceptor to handle token expiration
   useEffect(() => {
@@ -134,103 +136,194 @@ const ClientPanel = () => {
       setLoading(false);
     }
   };
-
-  // Randomly select a green tile
-  const selectRandomGreenTile = () => {
-    const availableTiles = tiles
-      .map((color, index) => color === 'red' ? index : null)
-      .filter(index => index !== null);
-    
-    if (availableTiles.length > 0) {
-      const randomIndex = availableTiles[Math.floor(Math.random() * availableTiles.length)];
-      const newTiles = [...tiles].fill('red'); // Reset all tiles to red first
-      
-      newTiles[randomIndex] = 'green';
-      setTiles(newTiles);
-      setCurrentGreenTile(randomIndex);
-    }
-  };
-
+  // Replace your existing selectRandomGreenTile function with this
+const selectNextGreenTile = () => {
+  if (currentGreenTile === null) {
+    // For first tile selection or reset, pick a starting point
+    const firstTile = Math.floor(Math.random() * 16);
+    const newTiles = [...tiles].fill('red');
+    newTiles[firstTile] = 'green';
+    setTiles(newTiles);
+    setCurrentGreenTile(firstTile);
+    return;
+  }
+  
+  // Use algorithm to determine next tile
+  const { nextTile, isForward } = recommendAlternateTile(currentGreenTile, isForwardStep);
+  
+  // Update direction state
+  setIsForwardStep(isForward);
+  
+  // Update tiles
+  const newTiles = [...tiles].fill('red');
+  newTiles[nextTile] = 'green';
+  setTiles(newTiles);
+  setCurrentGreenTile(nextTile);
+};
+  
   // Handle tile click
-  const handleTileClick = (index) => {
-    if (gameStatus !== 'playing') return;
+  // Update handleTileClick to use the new logic
+const handleTileClick = (index) => {
+  if (gameStatus !== 'playing') return;
 
-    const newTiles = [...tiles];
-    if (index === currentGreenTile) {
-      // Correct tile clicked
-      setScore(prevScore => {
-        const newScore = prevScore + 1;
-        // Add some excitement for consecutive correct clicks
-        if (newScore % 5 === 0) {
-          // Briefly flash all tiles yellow on milestone
-          newTiles.fill('milestone');
-          setTiles(newTiles);
-          
-          // Use a setTimeout to reset and select a new green tile
-          setTimeout(() => {
-            selectRandomGreenTile();
-          }, 300);
-          
-          return newScore;
-        }
+  const newTiles = [...tiles];
+  if (index === currentGreenTile) {
+    // Correct tile clicked
+    setScore(prevScore => {
+      const newScore = prevScore + 1;
+      // Add some excitement for consecutive correct clicks
+      if (newScore % 5 === 0) {
+        // Briefly flash all tiles yellow on milestone
+        newTiles.fill('milestone');
+        setTiles(newTiles);
         
-        // Normal gameplay
-        selectRandomGreenTile();
+        // Use a setTimeout to select next green tile
+        setTimeout(() => {
+          selectNextGreenTile();
+        }, 300);
+        
         return newScore;
-      });
-    } else {
-      // Incorrect tile clicked
-      newTiles[index] = 'wrong';
-      setTiles(newTiles);
-      setTimeout(() => {
-        selectRandomGreenTile(); // Immediately select a new green tile
-      }, 300);
+      }
+      
+      // Normal gameplay
+      selectNextGreenTile();
+      return newScore;
+    });
+  } else {
+    // Incorrect tile clicked
+    newTiles[index] = 'wrong';
+    setTiles(newTiles);
+    setTimeout(() => {
+      selectNextGreenTile(); // Select next green tile
+    }, 300);
+  }
+};
+// Add this function to your ClientPanel component
+const recommendAlternateTile = (selectedTile, forwardStep = true) => {
+  // Convert from zero-index to 1-index for algorithm
+  const tileNumber = selectedTile + 1;
+  
+  const forwardStepping = (tile) => {
+    if (tile < 1 || tile > 16) {
+      console.error("Invalid tile selection");
+      return { nextTile: Math.floor(Math.random() * 16), isForward: forwardStep };
     }
+
+    // Check if we're at the bottom row and need to change direction
+    if (tile >= 13 && tile <= 16) {
+      console.log("Turn Around and Walk in Reverse Way");
+      return reverseStepping(tile);
+    }
+
+    let alternateTile;
+    // For a 4x4 grid, move in a zigzag pattern
+    // If in an odd row (1-4, 9-12), move right or down
+    // If in an even row (5-8, 13-16), move left or down
+    
+    const row = Math.ceil(tile / 4);
+    const colPosition = tile % 4 === 0 ? 4 : tile % 4;
+    
+    if (row % 2 === 1) { // Odd rows (1st and 3rd)
+      if (colPosition === 4) { // At the end of odd row, move down
+        alternateTile = tile + 4;
+      } else { // Otherwise move right
+        alternateTile = tile + 1;
+      }
+    } else { // Even rows (2nd and 4th)
+      if (colPosition === 1) { // At the start of even row, move down
+        alternateTile = tile + 4;
+      } else { // Otherwise move left
+        alternateTile = tile - 1;
+      }
+    }
+    
+    // Convert back to zero-index for the grid
+    return { nextTile: alternateTile - 1, isForward: true };
   };
+
+  const reverseStepping = (tile) => {
+    if (tile < 1 || tile > 16) {
+      console.error("Invalid tile selection");
+      return { nextTile: Math.floor(Math.random() * 16), isForward: forwardStep };
+    }
+
+    // Check if we're at the top row and need to change direction
+    if (tile >= 1 && tile <= 4) {
+      console.log("Turn Around and Walk in Forward Way");
+      return forwardStepping(tile);
+    }
+
+    let alternateTile;
+    // For reverse movement in a 4x4 grid
+    const row = Math.ceil(tile / 4);
+    const colPosition = tile % 4 === 0 ? 4 : tile % 4;
+    
+    if (row % 2 === 0) { // Even rows (2nd and 4th) in reverse
+      if (colPosition === 4) { // At the end of even row, move up
+        alternateTile = tile - 4;
+      } else { // Otherwise move right
+        alternateTile = tile + 1;
+      }
+    } else { // Odd rows (1st and 3rd) in reverse
+      if (colPosition === 1) { // At the start of odd row, move up
+        alternateTile = tile - 4;
+      } else { // Otherwise move left
+        alternateTile = tile - 1;
+      }
+    }
+    
+    // Convert back to zero-index for the grid
+    return { nextTile: alternateTile - 1, isForward: false };
+  };
+
+  return forwardStep ? forwardStepping(tileNumber) : reverseStepping(tileNumber);
+};
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
-  const startGame = () => {
-    if (!selectedChild) {
-      setError('Please select a child to play');
-      return;
-    }
-  
-    // Reset game state
-    const initialTiles = Array(16).fill('red');
-    setTiles(initialTiles);
-    setScore(0);
-    setTimeLeft(600); // Set to 600 seconds for 10 minutes
-    setGameStatus('playing');
-    gameRecordedRef.current = false;
-  
-    // Track start time
-    startTimeRef.current = new Date();
-  
-    // Select first green tile
-    const firstGreenTile = Math.floor(Math.random() * 16);
-    const newTiles = [...initialTiles];
-    newTiles[firstGreenTile] = 'green';
-    setTiles(newTiles);
-    setCurrentGreenTile(firstGreenTile);
-  
-    // Clear any existing timer
-    if (timerRef.current) clearInterval(timerRef.current);
-  
-    // Start timer immediately
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prevTime => {
-        if (prevTime <= 1) {
-          clearInterval(timerRef.current); // Clear the timer immediately
-          endGame(); // Call endGame directly
-          return 0;
-        }
-        return prevTime - 1;
-      });
-    }, 1000);
-  };
+  // Update startGame function
+const startGame = () => {
+  if (!selectedChild) {
+    setError('Please select a child to play');
+    return;
+  }
+
+  // Reset game state
+  const initialTiles = Array(16).fill('red');
+  setTiles(initialTiles);
+  setScore(0);
+  setTimeLeft(600); // Set to 600 seconds for 10 minutes
+  setGameStatus('playing');
+  gameRecordedRef.current = false;
+  setIsForwardStep(true); // Reset direction
+
+  // Track start time
+  startTimeRef.current = new Date();
+
+  // First tile selection can still be random
+  const firstGreenTile = Math.floor(Math.random() * 16);
+  const newTiles = [...initialTiles];
+  newTiles[firstGreenTile] = 'green';
+  setTiles(newTiles);
+  setCurrentGreenTile(firstGreenTile);
+
+  // Clear any existing timer
+  if (timerRef.current) clearInterval(timerRef.current);
+
+  // Start timer immediately
+  timerRef.current = setInterval(() => {
+    setTimeLeft(prevTime => {
+      if (prevTime <= 1) {
+        clearInterval(timerRef.current);
+        endGame();
+        return 0;
+      }
+      return prevTime - 1;
+    });
+  }, 1000);
+};
   const endGame = async () => {
     // Stop the timer immediately
     clearInterval(timerRef.current);
@@ -596,7 +689,7 @@ const recordGameHistory = async (startTime, endTime) => {
                       <div>
                         <p className="text-xs text-gray-500">Time Left</p>
                         <span className={`font-bold text-lg ${timeLeft <= 3 && gameStatus === 'playing' ? 'text-red-600' : 'text-blue-600'}`}>
-                          {formatTime(timeLeft)} {/* Use the formatTime function here */}
+                          {formatTime(timeLeft)} mins
                         </span>
                       </div>
                     </div>
