@@ -1,27 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Repeat, Target, Clock, Star, UserPlus, LogOut } from 'lucide-react';
+// In ClientPanel.jsx, add the Stop icon import
+import { Play, Repeat, Target, Clock, Star, UserPlus, LogOut, Plus, Users, Award, Sparkles, Square } from 'lucide-react';
 import axios from 'axios';
-import ChildManagement from './ChildManagement';
 import GameHistory from './GameHistory';
-
 
 const ClientPanel = () => {
   const [tiles, setTiles] = useState(Array(16).fill('red'));
   const [currentGreenTile, setCurrentGreenTile] = useState(null);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(10);
+  const [timeLeft, setTimeLeft] = useState(600);
   const [gameStatus, setGameStatus] = useState('not-started');
   const [highScore, setHighScore] = useState(0);
   const [selectedChild, setSelectedChild] = useState(null);
-  const [showChildManagement, setShowChildManagement] = useState(false);
   const [showGameHistory, setShowGameHistory] = useState(false);
   const [children, setChildren] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [newChild, setNewChild] = useState({ name: '', age: '' });
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
   const gameRecordedRef = useRef(false);
-
 
   // Set up axios interceptor to handle token expiration
   useEffect(() => {
@@ -97,6 +95,46 @@ const ClientPanel = () => {
     window.location.href = '/login'; // Redirect to login page
   };
 
+  // Add a new child
+  const handleAddChild = async () => {
+    if (!newChild.name || !newChild.age) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication token not found');
+        setLoading(false);
+        return;
+      }
+      
+      const res = await axios.post('http://localhost:5000/children', newChild, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Update the children list with the newly added child
+      setChildren([...children, res.data]);
+      
+      // Reset the form
+      setNewChild({ name: '', age: '' });
+      setLoading(false);
+      
+      // If this is the first child, auto-select it
+      if (children.length === 0) {
+        setSelectedChild(res.data);
+      }
+    } catch (error) {
+      console.error('Failed to add child:', error);
+      setError('Failed to add child. Please try again.');
+      setLoading(false);
+    }
+  };
+
   // Randomly select a green tile
   const selectRandomGreenTile = () => {
     const availableTiles = tiles
@@ -149,88 +187,130 @@ const ClientPanel = () => {
       }, 300);
     }
   };
-
-  // Start game with child selection
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
   const startGame = () => {
     if (!selectedChild) {
-      setShowChildManagement(true);
+      setError('Please select a child to play');
       return;
     }
-
+  
     // Reset game state
     const initialTiles = Array(16).fill('red');
     setTiles(initialTiles);
     setScore(0);
-    setTimeLeft(10);
+    setTimeLeft(600); // Set to 600 seconds for 10 minutes
     setGameStatus('playing');
     gameRecordedRef.current = false;
-    
+  
     // Track start time
     startTimeRef.current = new Date();
-    
+  
     // Select first green tile
     const firstGreenTile = Math.floor(Math.random() * 16);
     const newTiles = [...initialTiles];
     newTiles[firstGreenTile] = 'green';
     setTiles(newTiles);
     setCurrentGreenTile(firstGreenTile);
-
-    // Start timer
+  
+    // Clear any existing timer
     if (timerRef.current) clearInterval(timerRef.current);
+  
+    // Start timer immediately
     timerRef.current = setInterval(() => {
       setTimeLeft(prevTime => {
         if (prevTime <= 1) {
-          endGame();
+          clearInterval(timerRef.current); // Clear the timer immediately
+          endGame(); // Call endGame directly
           return 0;
         }
         return prevTime - 1;
       });
     }, 1000);
   };
-
-  // End game and record history
-  const endGame = () => {
+  const endGame = async () => {
+    // Stop the timer immediately
     clearInterval(timerRef.current);
-    setGameStatus('finished');
     
-    // Calculate end time
+    // Calculate end time right away
     const endTime = new Date();
     
-    // Record game history only if it hasn't been recorded yet
+    // Record game history immediately
     if (!gameRecordedRef.current && selectedChild) {
-      recordGameHistory(startTimeRef.current, endTime);
-      gameRecordedRef.current = true;
+      try {
+        // Set flag first to prevent double-recording
+        gameRecordedRef.current = true;
+        
+        console.log("Recording game history immediately...", {
+          childId: selectedChild._id,
+          startTime: startTimeRef.current,
+          endTime: endTime,
+          currentScore: score
+        });
+        
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error("No token found, cannot record game history");
+          return;
+        }
+        
+        // Make the API call directly in endGame to ensure it happens immediately
+        await axios.post('http://localhost:5000/game-history', {
+          childId: selectedChild._id,
+          startTime: startTimeRef.current,
+          endTime: endTime,
+          score: score  // Use current score value
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        console.log('Game history recorded successfully');
+        alert('Game history saved successfully!'); // Notify user
+      } catch (error) {
+        console.error('Failed to record game history:', error);
+        gameRecordedRef.current = false; // Reset flag so we can try again
+      }
     }
+    
+    // Update game status AFTER recording history
+    setGameStatus('finished');
     
     // Update high score
     setHighScore(prevHighScore => Math.max(prevHighScore, score));
   };
 
-  // Record game history to backend
-  const recordGameHistory = async (startTime, endTime) => {
-    if (!selectedChild) return;
+ // Record game history to backend with current score passed directly
+const recordGameHistory = async (startTime, endTime) => {
+  if (!selectedChild) return;
 
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        handleLogout();
-        return;
-      }
-      
-      await axios.post('http://localhost:5000/game-history', {
-        childId: selectedChild._id,
-        startTime,
-        endTime,
-        score
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-    } catch (error) {
-      console.error('Failed to record game history:', error);
-      // We don't want to interrupt gameplay for this error, so just log it
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      handleLogout();
+      return;
     }
-  };
-
+    
+    // Use the current score value directly from state
+    const currentScore = score;
+    
+    const response = await axios.post('http://localhost:5000/game-history', {
+      childId: selectedChild._id,
+      startTime,
+      endTime,
+      score: currentScore
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    console.log('Game history recorded successfully:', response.data);
+  } catch (error) {
+    console.error('Failed to record game history:', error);
+    // We don't want to interrupt gameplay for this error, so just log it
+  }
+};
   // Restart game
   const restartGame = () => {
     // Clear any existing timer
@@ -252,21 +332,22 @@ const ClientPanel = () => {
   // Render tile color and classes
   const getTileClass = (color) => {
     switch(color) {
-      case 'red': return 'bg-red-500 hover:bg-red-600 transform hover:scale-105';
-      case 'green': return 'bg-green-500 animate-pulse';
-      case 'wrong': return 'bg-red-700 animate-shake';
-      case 'milestone': return 'bg-yellow-400 animate-bounce';
-      default: return 'bg-red-500';
+      case 'red': return 'bg-gradient-to-br from-red-400 to-red-600 hover:from-red-500 hover:to-red-700 shadow-lg transform hover:scale-105 text-white font-bold transition-all duration-200';
+      case 'green': return 'bg-gradient-to-br from-green-400 to-green-600 shadow-lg animate-pulse text-white font-bold transition-all duration-200';
+      case 'wrong': return 'bg-gradient-to-br from-red-600 to-red-900 shadow-lg animate-shake text-white font-bold transition-all duration-200';
+      case 'milestone': return 'bg-gradient-to-br from-yellow-300 to-yellow-500 shadow-lg animate-bounce text-white font-bold transition-all duration-200';
+      default: return 'bg-gradient-to-br from-red-400 to-red-600 shadow-lg text-white font-bold transition-all duration-200';
     }
   };
 
   // Handle child selection
   const handleChildSelect = (child) => {
     setSelectedChild(child);
-    setShowChildManagement(false);
-    
-    // Refresh children list after selection to ensure we have the latest data
-    fetchChildren();
+    // Reset game state when changing children
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    setGameStatus('not-started');
   };
 
   // Handle navigation to game history
@@ -302,26 +383,30 @@ const ClientPanel = () => {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-blue-100 to-purple-200">
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
       {/* Navbar */}
-      <nav className="bg-white shadow-md p-4">
+      <nav className="bg-white shadow-lg p-4 border-b border-purple-100">
         <div className="container mx-auto flex justify-between items-center">
           {/* Logo on left */}
           <div className="flex items-center">
             <img 
-              src="https://res.cloudinary.com/dxhr35o8l/image/upload/v1741375342/fuygxm2ntvzztldoyp66.png" 
+              src="https://res.cloudinary.com/dxhr35o8l/image/upload/v1744303318/7113770_we0ruy.jpg" 
               alt="Logo" 
-              className="h-10" 
+              className="h-12 transform hover:scale-105 transition-transform duration-300" 
             />
+            <span className="ml-2 text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500">
+              Tile Tap Pro
+            </span>
           </div>
 
           {/* Navigation in middle */}
           <div className="flex items-center">
             <button 
               onClick={handleGameHistoryClick}
-              className="text-gray-700 hover:text-blue-600 font-medium"
+              className="text-gray-700 hover:text-blue-600 font-medium px-4 py-2 rounded-full hover:bg-blue-50 transition-all duration-300 flex items-center"
             >
-              Children & Their Game History
+              <Award size={18} className="mr-2 text-blue-500" />
+              Game History Dashboard
             </button>
           </div>
 
@@ -329,7 +414,7 @@ const ClientPanel = () => {
           <div className="flex items-center">
             <button 
               onClick={handleLogout}
-              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center"
+              className="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white px-4 py-2 rounded-lg flex items-center transition-all duration-300 shadow-md hover:shadow-lg"
             >
               <LogOut size={18} className="mr-2" />
               Logout
@@ -339,153 +424,269 @@ const ClientPanel = () => {
       </nav>
 
       {/* Main Content */}
-      <div className="flex-grow flex items-center justify-center p-4">
+      <div className="flex-grow flex">
         {/* Error Display */}
         {error && (
-          <div className="fixed top-16 right-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded shadow-md">
-            <p>{error}</p>
-            <button 
-              onClick={() => {
-                setError(null);
-                fetchChildren();
-              }}
-              className="mt-2 text-sm text-blue-600 hover:underline"
-            >
-              Try Again
-            </button>
+          <div className="fixed top-16 right-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-lg shadow-lg z-50 animate-fadeIn">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium">{error}</p>
+                <button 
+                  onClick={() => {
+                    setError(null);
+                    fetchChildren();
+                  }}
+                  className="mt-2 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Loading indicator */}
         {loading && (
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+            <div className="p-4 bg-white bg-opacity-80 rounded-full shadow-xl">
+              <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-500"></div>
+            </div>
           </div>
-        )}
-
-        {/* Child Management Popup */}
-        {showChildManagement && (
-          <ChildManagement 
-            onChildSelect={handleChildSelect}
-            onClose={() => {
-              setShowChildManagement(false);
-              fetchChildren(); // Refresh the children list when closing
-            }}
-          />
         )}
 
         {/* Game History Component */}
         {showGameHistory ? (
-          <GameHistory 
-            children={children}
-            onClose={handleGameHistoryClose}
-          />
+          <div className="w-full p-4">
+            <GameHistory 
+              children={children}
+              onClose={handleGameHistoryClose}
+            />
+          </div>
         ) : (
-          <div className="bg-white shadow-2xl rounded-2xl p-8 w-full max-w-md transform transition-all hover:scale-105">
-            {/* Header with Child Selection */}
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-500">
-                Tile Tap Challenge
-              </h1>
-              <button 
-                onClick={() => setShowChildManagement(true)}
-                className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600"
-              >
-                <UserPlus size={20} />
-              </button>
-            </div>
-
-            {/* Show selected child if available */}
-            {selectedChild && (
-              <div className="text-center mb-4">
-                <p className="text-xl">
-                  Playing as: <span className="font-bold text-purple-600">{selectedChild.name}</span>
-                </p>
+          <div className="flex w-full">
+            {/* Left Sidebar - Child Management */}
+            <div className="w-1/4 bg-white shadow-xl p-6 overflow-y-auto border-r border-purple-100">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold flex items-center bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500">
+                  <Users className="mr-2 text-blue-500" /> Players
+                </h2>
               </div>
-            )}
-            
-            {/* Game Stats */}
-            <div className="flex justify-between mb-6">
-              <div className="flex items-center space-x-2">
-                <Star className="text-yellow-500" />
-                <span className="font-bold text-purple-600">High Score: {highScore}</span>
+              
+              {/* Add Child Form */}
+              <div className="mb-8 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl shadow-sm">
+                <h3 className="text-sm font-semibold mb-3 text-blue-700 flex items-center">
+                  <UserPlus size={16} className="mr-2" /> Add New Player
+                </h3>
+                <div className="flex space-x-2 mb-3">
+                  <input
+                    type="text"
+                    placeholder="Child Name"
+                    value={newChild.name}
+                    onChange={(e) => setNewChild({ ...newChild, name: e.target.value })}
+                    className="w-full px-4 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+                    disabled={loading}
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <input
+                    type="number"
+                    placeholder="Age"
+                    value={newChild.age}
+                    onChange={(e) => setNewChild({ ...newChild, age: e.target.value })}
+                    className="w-full px-4 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+                    disabled={loading}
+                  />
+                  <button 
+                    onClick={handleAddChild}
+                    className={`${loading ? 'bg-gray-400' : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600'} text-white px-4 py-2 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-300`}
+                    disabled={loading}
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Clock className={`${timeLeft <= 3 && gameStatus === 'playing' ? 'text-red-500 animate-ping' : 'text-blue-500'}`} />
-                <span className={`font-bold ${timeLeft <= 3 && gameStatus === 'playing' ? 'text-red-600' : 'text-blue-600'}`}>
-                  {timeLeft} sec
-                </span>
-              </div>
-            </div>
-
-            {/* Game Status & Controls */}
-            {gameStatus === 'not-started' && (
-              <div className="text-center mb-6">
-                <button 
-                  onClick={startGame}
-                  className="bg-gradient-to-r from-purple-600 to-blue-500 text-white px-6 py-3 rounded-full hover:from-purple-700 hover:to-blue-600 transition-all transform hover:scale-110 flex items-center justify-center mx-auto space-x-2"
-                >
-                  <Play className="mr-2" /> Start Game
-                </button>
-                {!selectedChild && (
-                  <p className="text-red-500 mt-2">Please select a child before starting the game.</p>
+              
+              {/* Children List */}
+              <div>
+                <h3 className="text-sm font-semibold mb-3 text-gray-700 flex items-center">
+                  <Sparkles size={16} className="mr-2 text-yellow-500" /> Select a Player
+                </h3>
+                {loading ? (
+                  <div className="text-gray-500 text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                    <p className="text-sm">Loading players...</p>
+                  </div>
+                ) : children.length === 0 ? (
+                  <div className="bg-gray-50 rounded-xl p-6 text-center">
+                    <p className="text-gray-500 text-sm">No players added yet</p>
+                    <p className="text-gray-400 text-xs mt-2">Add a player using the form above</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {children.map((child) => (
+                      <button
+                        key={child._id}
+                        onClick={() => handleChildSelect(child)}
+                        className={`w-full px-4 py-3 rounded-xl text-left flex justify-between items-center transition-all duration-300 shadow-sm hover:shadow-md ${
+                          selectedChild && selectedChild._id === child._id 
+                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' 
+                            : 'bg-gradient-to-r from-blue-50 to-purple-50 text-blue-800 hover:from-blue-100 hover:to-purple-100'
+                        }`}
+                        disabled={loading}
+                      >
+                        <div className="flex items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
+                            selectedChild && selectedChild._id === child._id 
+                              ? 'bg-white bg-opacity-20' 
+                              : 'bg-blue-100'
+                          }`}>
+                            {child.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-medium">{child.name}</span>
+                        </div>
+                        {/* Modified this span to always show with proper styling */}
+                        <span className={`text-sm py-1 px-2 rounded-full ${
+                          selectedChild && selectedChild._id === child._id 
+                            ? 'bg-white bg-opacity-20' 
+                            : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          Age: {child.age}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
-            )}
-
-            {gameStatus === 'finished' && (
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-pink-500">
-                  Game Over!
-                </h2>
-                <p className="text-xl mb-4">Total Score: <span className="font-bold text-purple-600">{score}</span></p>
-                <button 
-                  onClick={restartGame}
-                  className="bg-gradient-to-r from-green-500 to-teal-500 text-white px-6 py-3 rounded-full hover:from-green-600 hover:to-teal-600 transition-all transform hover:scale-110 flex items-center justify-center mx-auto space-x-2"
-                >
-                  <Repeat className="mr-2" /> Play Again
-                </button>
-              </div>
-            )}
-
-            {/* Tile Grid */}
-            {gameStatus === 'playing' && (
-              <div className="grid grid-cols-4 gap-3 mb-4">
-                {tiles.map((color, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleTileClick(index)}
-                    className={`h-20 w-full rounded-lg transition-all duration-300 ${getTileClass(color)} 
-                      ${gameStatus !== 'playing' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                    disabled={gameStatus !== 'playing'}
-                  >
-                    {`t${index + 1}`}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Score Display */}
-            {gameStatus === 'playing' && (
-              <div className="text-center">
-                <span className="font-bold text-xl text-purple-600 flex items-center justify-center">
-                  <Target className="mr-2 text-green-500" /> Score: {score}
-                </span>
-              </div>
-            )}
+            </div>
             
-            {/* No Children Message */}
-            {!loading && children.length === 0 && (
-              <div className="text-center mt-4">
-                <p className="text-red-500">No children found. Please add a child to play.</p>
-                <button 
-                  onClick={() => setShowChildManagement(true)}
-                  className="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
-                >
-                  Add Child
-                </button>
-              </div>
-            )}
+            {/* Right Content - Game */}
+            <div className="w-3/4 p-8 flex items-center justify-center bg-gradient-to-br from-white to-purple-50">
+              {selectedChild ? (
+                <div className="bg-white shadow-2xl rounded-3xl p-8 w-full max-w-2xl m-auto transform transition-all duration-500 hover:shadow-2xl border border-purple-100">
+                  {/* Header with Selected Child */}
+                  <div className="mb-8">
+                    <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-blue-500 to-indigo-600 text-center">
+                      Tile Tap Challenge
+                    </h1>
+                    <p className="text-center text-xl mt-3 text-gray-600">
+                      Playing as: <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-500">{selectedChild.name}</span>
+                    </p>
+                  </div>
+                  
+                  {/* Game Stats */}
+                  <div className="flex justify-between mb-8 bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-2xl shadow-inner">
+                    <div className="flex items-center space-x-2">
+                      <div className="p-2 bg-yellow-100 rounded-full">
+                        <Star className="text-yellow-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">High Score</p>
+                        <span className="font-bold text-purple-600 text-lg">{highScore}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className={`p-2 rounded-full ${timeLeft <= 3 && gameStatus === 'playing' ? 'bg-red-100' : 'bg-blue-100'}`}>
+                        <Clock className={`${timeLeft <= 3 && gameStatus === 'playing' ? 'text-red-500 animate-ping' : 'text-blue-500'}`} />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Time Left</p>
+                        <span className={`font-bold text-lg ${timeLeft <= 3 && gameStatus === 'playing' ? 'text-red-600' : 'text-blue-600'}`}>
+                          {formatTime(timeLeft)} {/* Use the formatTime function here */}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Game Status & Controls */}
+                  {gameStatus === 'not-started' && (
+                    <div className="text-center mb-8">
+                      <button 
+                        onClick={startGame}
+                        className="bg-gradient-to-r from-purple-600 to-blue-500 text-white px-8 py-4 rounded-full hover:from-purple-700 hover:to-blue-600 transition-all transform hover:scale-105 flex items-center justify-center mx-auto space-x-2 shadow-lg hover:shadow-xl"
+                      >
+                        <Play className="mr-2" size={20} /> Start Game
+                      </button>
+                      <p className="text-gray-500 text-sm mt-4">Tap the green tile as fast as you can!</p>
+                    </div>
+                  )}
+
+                  {gameStatus === 'finished' && (
+                    <div className="text-center mb-8">
+                      <div className="bg-gradient-to-r from-pink-50 to-purple-50 p-6 rounded-2xl mb-6 shadow-inner">
+                        <h2 className="text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-pink-500">
+                          Game Over!
+                        </h2>
+                        <div className="flex items-center justify-center">
+                          <div className="p-3 bg-purple-100 rounded-full mr-3">
+                            <Target className="text-purple-600" size={24} />
+                          </div>
+                          <p className="text-xl">Total Score: <span className="font-bold text-purple-600">{score}</span></p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={restartGame}
+                        className="bg-gradient-to-r from-green-500 to-teal-500 text-white px-8 py-4 rounded-full hover:from-green-600 hover:to-teal-600 transition-all transform hover:scale-105 flex items-center justify-center mx-auto space-x-2 shadow-lg hover:shadow-xl"
+                      >
+                        <Repeat className="mr-2" size={20} /> Play Again
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Tile Grid - INCREASED SIZE */}
+                  {gameStatus === 'playing' && (
+                    <div className="grid grid-cols-4 gap-4 mb-6">
+                      {tiles.map((color, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleTileClick(index)}
+                          className={`h-24 w-full rounded-xl transition-all duration-300 ${getTileClass(color)} 
+                            ${gameStatus !== 'playing' ? 'cursor-not-allowed' : 'cursor-pointer'}
+                            flex items-center justify-center`}
+                          disabled={gameStatus !== 'playing'}
+                        >
+                          <span className="opacity-75 text-2xl">
+                            {`${index + 1}`}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  
+                  {gameStatus === 'playing' && (
+                  <div className="flex flex-col space-y-4">
+                    <div className="text-center p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl shadow-inner">
+                      <span className="font-bold text-2xl text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-blue-600 flex items-center justify-center">
+                        <Target className="mr-3 text-green-500" /> Score: {score}
+                      </span>
+                    </div>
+                    
+                    {/* Stop Button */}
+                    <button 
+                      onClick={endGame}
+                      className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-3 rounded-full hover:from-red-600 hover:to-pink-600 transition-all flex items-center justify-center mx-auto shadow-md hover:shadow-lg"
+                    >
+                      <Square className="mr-2" size={18} /> Stop Game
+                    </button>
+                  </div>
+                )}
+                </div>
+              ) : (
+                <div className="text-center p-10 bg-white rounded-2xl shadow-xl border border-purple-100 max-w-lg mx-auto">
+                  <div className="w-24 h-24 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <UserPlus size={40} className="text-purple-500" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-800 mb-4">Select a Player</h3>
+                  <p className="text-gray-600 mb-3">Select a player from the list to start playing the Tile Tap Challenge</p>
+                  <p className="text-gray-500 text-sm">If you don't have any players yet, add one using the form on the left</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

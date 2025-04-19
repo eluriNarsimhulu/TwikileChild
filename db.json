@@ -1,0 +1,101 @@
+{
+    "users": [
+      {
+        "email": "user1@example.com",
+        "password": "hashed_password_1",
+        "company": "XYZ Corp",
+        "username": "User1",
+        "children": [
+          {
+            "child_name": "Alice",
+            "records": [
+              {
+                "date": "2025-03-10",
+                "steps": [
+                  {"time": "10:05 AM", "tile_number": 1, "device_message": "Step Registered"},
+                  {"time": "10:07 AM", "tile_number": 2, "device_message": "Missed Step"},
+                  {"time": "10:09 AM", "tile_number": 3, "device_message": "Good Balance"}
+                ]
+              },
+              {
+                "date": "2025-03-11",
+                "steps": [
+                  {"time": "11:10 AM", "tile_number": 1, "device_message": "Step Registered"},
+                  {"time": "11:12 AM", "tile_number": 2, "device_message": "Step Registered"},
+                  {"time": "11:14 AM", "tile_number": 3, "device_message": "Missed Step"}
+                ]
+              }
+            ]
+          },
+          {
+            "child_name": "Bob",
+            "records": [
+              {
+                "date": "2025-03-10",
+                "steps": [
+                  {"time": "09:00 AM", "tile_number": 1, "device_message": "Too Slow"},
+                  {"time": "09:05 AM", "tile_number": 2, "device_message": "Good Balance"}
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "email": "user2@example.com",
+        "password": "hashed_password_2",
+        "company": "ABC Ltd",
+        "username": "User2",
+        "children": [
+          {
+            "child_name": "Charlie",
+            "records": [
+              {
+                "date": "2025-03-09",
+                "steps": [
+                  {"time": "08:30 AM", "tile_number": 1, "device_message": "Missed Step"},
+                  {"time": "08:32 AM", "tile_number": 2, "device_message": "Good Balance"},
+                  {"time": "08:35 AM", "tile_number": 3, "device_message": "Step Registered"}
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "email": "user3@example.com",
+        "password": "hashed_password_3",
+        "company": "PQR Solutions",
+        "username": "User3",
+        "children": [
+          {
+            "child_name": "David",
+            "records": [
+              {
+                "date": "2025-03-12",
+                "steps": [
+                  {"time": "02:00 PM", "tile_number": 1, "device_message": "Step Registered"},
+                  {"time": "02:05 PM", "tile_number": 2, "device_message": "Missed Step"},
+                  {"time": "02:10 PM", "tile_number": 3, "device_message": "Too Slow"},
+                  {"time": "02:15 PM", "tile_number": 4, "device_message": "Good Balance"}
+                ]
+              }
+            ]
+          },
+          {
+            "child_name": "Emma",
+            "records": [
+              {
+                "date": "2025-03-11",
+                "steps": [
+                  {"time": "03:00 PM", "tile_number": 1, "device_message": "Step Registered"},
+                  {"time": "03:05 PM", "tile_number": 2, "device_message": "Step Registered"},
+                  {"time": "03:10 PM", "tile_number": 3, "device_message": "Step Registered"}
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
