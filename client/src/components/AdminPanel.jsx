@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import React from "react";
 import ChatBox from "./ChatBox";
+import ClientInsightsCharts from "./charts/ClientInsightsCharts";
 
 function AdminPanel() {
   const [clients, setClients] = useState([]);
@@ -349,6 +350,11 @@ function AdminPanel() {
                           </div>
                         </div>
                       </div>
+                      
+                      {/* Charts Section */}
+                      {childrenData[selectedClient] && childrenData[selectedClient].length > 0 && (
+                        <ClientInsightsCharts childrenData={childrenData[selectedClient]} />
+                      )}
                     
                       {childrenData[selectedClient].length === 0 ? (
                         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 text-yellow-700 rounded-lg">

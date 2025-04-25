@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, Repeat, Target, Clock, Star, UserPlus, LogOut, Plus, Users, Award, Sparkles, Square } from 'lucide-react';
 import axios from 'axios';
 import GameHistory from './GameHistory';
+import ClientChatBox from './ClientChatBox';
 
 const ClientPanel = () => {
   const [tiles, setTiles] = useState(Array(16).fill('red'));
@@ -783,7 +784,9 @@ const recordGameHistory = async (startTime, endTime) => {
           </div>
         )}
       </div>
+      <ClientChatBox />
     </div>
+    
   );
 };
 

@@ -45,7 +45,7 @@ function ChatBox({ selectedClient }) {
     try {
       setTyping(true);
       const res = await axios.post(
-        "http://localhost:5000/messages",
+        "http://localhost:5000/messagess",
         {
           receiverId: selectedClient,
           content: newMessage

@@ -402,25 +402,25 @@ const messageSchema = new mongoose.Schema({
 const Message = mongoose.model("Message", messageSchema);
 
 // Send a message
-app.post("/messages", verifyToken, async (req, res) => {
-  try {
-    const { receiverId, content } = req.body;
+// app.post("/messages", verifyToken, async (req, res) => {
+//   try {
+//     const { receiverId, content } = req.body;
     
-    const message = new Message({
-      senderId: req.user.id,
-      receiverId,
-      content,
-      isAdmin: req.user.isAdmin,
-      timestamp: Date.now(),
-    });
+//     const message = new Message({
+//       senderId: req.user.id,
+//       receiverId,
+//       content,
+//       isAdmin: req.user.isAdmin,
+//       timestamp: Date.now(),
+//     });
     
-    await message.save();
+//     await message.save();
     
-    res.status(201).json(message);
-  } catch (error) {
-    res.status(500).json({ message: "Error sending message", error: error.message });
-  }
-});
+//     res.status(201).json(message);
+//   } catch (error) {
+//     res.status(500).json({ message: "Error sending message", error: error.message });
+//   }
+// });
 
 // Get messages between admin and client
 app.get("/messages/:clientId", verifyToken, async (req, res) => {
@@ -487,5 +487,108 @@ app.get("/messages/unread/count", verifyToken, async (req, res) => {
 });
 // ========================
 // Server Setup
-// ========================
+// =======================
+
+
+// 1. Fix the message endpoint typo (change "messagess" to "messages")
+app.post("/messages", verifyToken, async (req, res) => {
+  try {
+    const { receiverId, content } = req.body;
+    
+    // Handle the special case for "admin" string identifier
+    let actualReceiverId = receiverId;
+    
+    // If receiverId is "admin", find the actual admin user ID
+    if (receiverId === "admin") {
+      const adminUser = await User.findOne({ isAdmin: true });
+      if (!adminUser) {
+        return res.status(404).json({ message: "Admin user not found" });
+      }
+      actualReceiverId = adminUser._id;
+    }
+    
+    const message = new Message({
+      senderId: req.user.id,
+      receiverId: actualReceiverId,
+      content,
+      isAdmin: req.user.isAdmin,
+      timestamp: Date.now(),
+    });
+    
+    await message.save();
+    
+    res.status(201).json(message);
+  } catch (error) {
+    res.status(500).json({ message: "Error sending message", error: error.message });
+  }
+});
+
+// 2. Fix the admin messages endpoint
+app.get("/messages/admin", verifyToken, async (req, res) => {
+  try {
+    // Find admin user
+    const admin = await User.findOne({ isAdmin: true });
+    
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+    
+    // Convert ObjectId to string for comparison
+    const adminId = admin._id.toString();
+    const userId = req.user.id.toString();
+    
+    // Find messages between client and admin
+    const messages = await Message.find({
+      $or: [
+        { senderId: userId, receiverId: adminId },
+        { senderId: adminId, receiverId: userId }
+      ]
+    }).sort({ timestamp: 1 });
+    
+    // For each message, add sender info
+    const messagesWithInfo = messages.map(message => {
+      const messageObj = message.toObject();
+      
+      // Check if sender is admin
+      messageObj.isAdmin = message.senderId.toString() === adminId;
+      messageObj.senderName = messageObj.isAdmin ? "Admin" : "You";
+      
+      return messageObj;
+    });
+    
+    res.json(messagesWithInfo);
+  } catch (error) {
+    console.error("Error in /messages/admin:", error);
+    res.status(500).json({ message: "Error fetching messages", error: error.message });
+  }
+});
+
+// 3. Enhanced error handling for the mark-as-read endpoint
+app.put("/messages/read/admin", verifyToken, async (req, res) => {
+  try {
+    // Find admin user
+    const admin = await User.findOne({ isAdmin: true });
+    
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+    
+    // Mark messages from admin as read
+    const result = await Message.updateMany(
+      { senderId: admin._id, receiverId: req.user.id, isRead: false },
+      { $set: { isRead: true } }
+    );
+    
+    res.json({ 
+      message: "Messages marked as read",
+      updated: result.modifiedCount
+    });
+  } catch (error) {
+    console.error("Error marking messages as read:", error);
+    res.status(500).json({ message: "Error marking messages as read", error: error.message });
+  }
+});
+
+
+
 app.listen(5000, () => console.log("Server running on port 5000"));
