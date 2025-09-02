@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(cors());
 
 // Database Connection
-const mongoUrl = 'mongodb://localhost:27017/management_system';
+const mongoUrl = process.env.MONGO_URI;
 mongoose.connect(mongoUrl, {
   serverApi: {
     version: "1",
