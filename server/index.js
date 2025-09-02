@@ -7,7 +7,9 @@ require("dotenv").config();
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || "*"
+}));
 
 // Database Connection
 const mongoUrl = process.env.MONGO_URI;
@@ -31,7 +33,7 @@ const verifyToken = (req, res, next) => {
   if (!token) return res.status(403).json({ message: "No token provided" });
 
   try {
-    const decoded = jwt.verify(token, "secretkey");
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
     next();
   } catch (err) {
@@ -141,7 +143,7 @@ app.post("/login", async (req, res) => {
       email: user.email, 
       isAdmin, 
       id: user._id 
-    }, "secretkey", { expiresIn: "1h" });
+    }, process.env.JWT_SECRET, { expiresIn: "1h" });
 
     res.json({ 
       message: "Login successful", 
@@ -500,7 +502,7 @@ app.post("/messages", verifyToken, async (req, res) => {
     
     // If receiverId is "admin", find the actual admin user ID
     if (receiverId === "admin") {
-      const adminUser = await User.findOne({ isAdmin: true });
+      const adminUser = await Admin.findOne({});
       if (!adminUser) {
         return res.status(404).json({ message: "Admin user not found" });
       }
@@ -527,7 +529,7 @@ app.post("/messages", verifyToken, async (req, res) => {
 app.get("/messages/admin", verifyToken, async (req, res) => {
   try {
     // Find admin user
-    const admin = await User.findOne({ isAdmin: true });
+    const admin = await Admin.findOne({});
     
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
@@ -589,6 +591,5 @@ app.put("/messages/read/admin", verifyToken, async (req, res) => {
   }
 });
 
-
-
-app.listen(5000, () => console.log("Server running on port 5000"));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
