@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import React from "react";
 import ChatBox from "./ChatBox";
+import API_BASE_URL from '../../config/api.js';
 import ClientInsightsCharts from "./charts/ClientInsightsCharts";
 
 function AdminPanel() {
@@ -38,7 +39,7 @@ function AdminPanel() {
   const fetchClients = async () => {
     setLoading(true);
     try {
-      const res = await axios.get("http://localhost:5000/clients", {
+      const res = await axios.get(`${API_BASE_URL}/clients`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setClients(res.data);
@@ -65,7 +66,7 @@ function AdminPanel() {
 
   const fetchClientChildren = async (clientId) => {
     try {
-      const res = await axios.get(`http://localhost:5000/clients/${clientId}/children`, {
+      const res = await axios.get(`${API_BASE_URL}/clients/${clientId}/children`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

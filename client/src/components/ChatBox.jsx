@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import API_BASE_URL from '../../config/api.js';
 import axios from "axios";
 
 function ChatBox({ selectedClient }) {
@@ -25,7 +26,7 @@ function ChatBox({ selectedClient }) {
     setLoading(true);
     try {
       const res = await axios.get(
-        `http://localhost:5000/messages/${selectedClient}`,
+        `${API_BASE_URL}/messages/${selectedClient}`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -45,7 +46,7 @@ function ChatBox({ selectedClient }) {
     try {
       setTyping(true);
       const res = await axios.post(
-        "http://localhost:5000/messagess",
+        `${API_BASE_URL}/messages`,
         {
           receiverId: selectedClient,
           content: newMessage

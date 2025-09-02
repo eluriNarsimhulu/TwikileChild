@@ -4,6 +4,7 @@ import { Play, Repeat, Target, Clock, Star, UserPlus, LogOut, Plus, Users, Award
 import axios from 'axios';
 import GameHistory from './GameHistory';
 import ClientChatBox from './ClientChatBox';
+import API_BASE_URL from '../../config/api.js';
 
 const ClientPanel = () => {
   const [tiles, setTiles] = useState(Array(16).fill('red'));
@@ -63,7 +64,7 @@ const ClientPanel = () => {
         return;
       }
       
-      const res = await axios.get('http://localhost:5000/children', {
+      const res = await axios.get(`${API_BASE_URL}/children`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -116,7 +117,7 @@ const ClientPanel = () => {
         return;
       }
       
-      const res = await axios.post('http://localhost:5000/children', newChild, {
+      const res = await axios.post(`${API_BASE_URL}/children`, newChild, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -352,7 +353,7 @@ const startGame = () => {
         }
         
         // Make the API call directly in endGame to ensure it happens immediately
-        await axios.post('http://localhost:5000/game-history', {
+        await axios.post(`${API_BASE_URL}/game-history`, {
           childId: selectedChild._id,
           startTime: startTimeRef.current,
           endTime: endTime,
@@ -389,8 +390,8 @@ const recordGameHistory = async (startTime, endTime) => {
     
     // Use the current score value directly from state
     const currentScore = score;
-    
-    const response = await axios.post('http://localhost:5000/game-history', {
+
+    const response = await axios.post(`${API_BASE_URL}/game-history`, {
       childId: selectedChild._id,
       startTime,
       endTime,

@@ -4,6 +4,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import Lottie from "react-lottie"; // Make sure to install react-lottie
 import login from "../assets/signup.json";
+import API_BASE_URL from '../../config/api.js';
 
 function Signup() {
   const [formData, setFormData] = useState({
@@ -37,7 +38,7 @@ function Signup() {
   const handleSignup = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:5000/signup", formData);
+      const res = await axios.post(`${API_BASE_URL}/signup`, formData);
       alert(res.data.message);
       navigate("/login"); // Redirect to login after successful signup
     } catch (error) {

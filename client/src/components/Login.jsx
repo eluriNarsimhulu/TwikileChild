@@ -4,6 +4,8 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import Lottie from "react-lottie";
 import login from "../assets/login.json";
+import API_BASE_URL from '../../config/api.js';
+
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -25,7 +27,7 @@ function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:5000/login", {
+      const res = await axios.post(`${API_BASE_URL}/login`, {
         email,
         password,
         isAdmin,

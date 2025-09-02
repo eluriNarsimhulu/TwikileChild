@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import API_BASE_URL from '../../config/api.js';
 import { Send, ArrowDownCircle, ArrowLeft, RefreshCw } from "lucide-react";
 
 function ClientChatBox() {
@@ -39,7 +40,7 @@ function ClientChatBox() {
   const checkUnreadMessages = async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/messages/unread/count",
+        `${API_BASE_URL}/messages/unread/count`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -57,7 +58,7 @@ function ClientChatBox() {
     setLoading(true);
     try {
       const res = await axios.get(
-        "http://localhost:5000/messages/admin",
+        `${API_BASE_URL}/messages/admin`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -67,7 +68,7 @@ function ClientChatBox() {
       if (res.data.length > 0) {
         try {
           await axios.put(
-            "http://localhost:5000/messages/read/admin",
+            `${API_BASE_URL}/messages/read/admin`,
             {},
             {
               headers: { Authorization: `Bearer ${token}` }
@@ -108,7 +109,7 @@ const sendMessage = async (e) => {
     try {
       setSending(true);
       const res = await axios.post(
-        "http://localhost:5000/messages",
+        `${API_BASE_URL}/messages`,
         {
           receiverId: "admin", // Special identifier for admin
           content: newMessage

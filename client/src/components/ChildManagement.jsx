@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import API_BASE_URL from '../../config/api.js';
 import axios from 'axios';
 import { X, Plus, Users } from 'lucide-react';
 
@@ -24,8 +25,8 @@ const ChildManagement = ({ onChildSelect, onClose }) => {
         setLoading(false);
         return;
       }
-      
-      const res = await axios.get('http://localhost:5000/children', {
+
+      const res = await axios.get(`${API_BASE_URL}/children`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -55,8 +56,8 @@ const ChildManagement = ({ onChildSelect, onClose }) => {
         setLoading(false);
         return;
       }
-      
-      const res = await axios.post('http://localhost:5000/children', newChild, {
+
+      const res = await axios.post(`${API_BASE_URL}/children`, newChild, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

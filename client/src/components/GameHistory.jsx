@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import API_BASE_URL from '../../config/api.js';
 import axios from 'axios';
 import { X, Clock, Star, Calendar, Trash2, AlertTriangle } from 'lucide-react';
 
@@ -16,7 +17,7 @@ const GameHistory = ({ children, onClose }) => {
   const fetchGameHistory = async (childId) => {
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/game-history/${childId}`, {
+      const res = await axios.get(`${API_BASE_URL}/game-history/${childId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setGameHistory(res.data);
@@ -30,7 +31,7 @@ const GameHistory = ({ children, onClose }) => {
   // Fetch children list (if a child is deleted)
   const fetchChildren = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/children', {
+      const res = await axios.get(`${API_BASE_URL}/children`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       // Update the children list
@@ -76,7 +77,7 @@ const GameHistory = ({ children, onClose }) => {
   // Handle delete game history (without confirmation)
   const handleDeleteGame = async (gameId) => {
     try {
-      await axios.delete(`http://localhost:5000/game-history/${gameId}`, {
+      await axios.delete(`${API_BASE_URL}/game-history/${gameId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -90,7 +91,7 @@ const GameHistory = ({ children, onClose }) => {
   // Handle delete child
   const handleDeleteChild = async (childId) => {
     try {
-      await axios.delete(`http://localhost:5000/children/${childId}`, {
+      await axios.delete(`${API_BASE_URL}/children/${childId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
